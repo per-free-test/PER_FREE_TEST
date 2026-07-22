@@ -1,0 +1,374 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>干支編號名冊（Apps Script 連接版）</title>
+  <style>
+    body{
+      font-family:system-ui,-apple-system,"Segoe UI",sans-serif;
+      margin:24px;
+      line-height:1.6;
+      background:#f8fafc;
+      color:#111827;
+    }
+    .box{
+      max-width:860px;
+      padding:20px;
+      border:1px solid #d1d5db;
+      border-radius:16px;
+      background:#fff;
+    }
+    h2{margin-top:0}
+    label{display:block; margin-top:12px; font-weight:600;}
+    input, select, button, textarea{
+      font-size:16px;
+      padding:10px 12px;
+      width:100%;
+      box-sizing:border-box;
+      margin-top:6px;
+      border:1px solid #cbd5e1;
+      border-radius:10px;
+    }
+    button{cursor:pointer; background:#f8fafc}
+    button:hover{background:#f1f5f9}
+    .row{
+      display:grid;
+      grid-template-columns:repeat(3,1fr);
+      gap:12px;
+      margin-top:8px;
+    }
+    .nums{
+      display:flex;
+      gap:12px;
+      margin-top:14px;
+      flex-wrap:wrap;
+    }
+    .pill{
+      padding:10px 12px;
+      border:1px solid #d1d5db;
+      border-radius:999px;
+      min-width:120px;
+      text-align:center;
+      background:#f8fafc;
+    }
+    .muted{color:#6b7280; font-size:13px;}
+    .warn{
+      margin-top:12px;
+      padding:12px;
+      border:1px solid #f59e0b;
+      border-radius:12px;
+      background:#fffbeb;
+      color:#92400e;
+      font-size:14px;
+    }
+    .ok{
+      margin-top:12px;
+      padding:12px;
+      border:1px solid #86efac;
+      border-radius:12px;
+      background:#f0fdf4;
+      color:#166534;
+      font-size:14px;
+    }
+    hr{margin:18px 0; border:none; border-top:1px solid #e5e7eb;}
+    @media (max-width:700px){
+      .row{grid-template-columns:1fr}
+    }
+  </style>
+</head>
+<body>
+  <div class="box">
+    <h2>干支編號名冊（Apps Script 連接版）</h2>
+    <p class="muted">
+      透過 Apps Script 取得 <strong>出生年月日 → 日編號・月編號・年編號・日柱・月柱・年柱</strong>。<br>
+      ※ 請在此頁輸入出生年月日後，按下「① 取得命式」。
+    </p>
+
+    <div class="warn">
+      使用方式：<br>
+      ① 輸入出生年月日<br>
+      ② 按下「① 取得命式」<br>
+      ③ 當編號與干支顯示後進行保存
+    </div>
+
+    <label>保存名稱（姓名或暱稱）</label>
+    <input id="name" placeholder="" />
+
+    <label>出生年月日</label>
+    <input id="dob" type="date" />
+
+    <div id="status" class="muted" style="margin-top:10px;"></div>
+    <pre id="debugResult" style="background:#fff;padding:10px;"></pre>
+  
+    <div class="row">
+      <div>
+        <label>日編號（1〜60）</label>
+        <input id="numD" type="number" min="1" max="60" placeholder="" />
+      </div>
+      <div>
+        <label>月編號（1〜60）</label>
+        <input id="numM" type="number" min="1" max="60" placeholder="" />
+      </div>
+      <div>
+        <label>年編號（1〜60）</label>
+        <input id="numY" type="number" min="1" max="60" placeholder="" />
+      </div>
+    </div>
+
+    <div class="nums">
+      <div class="pill">日：<span id="outD">-</span></div>
+      <div class="pill">月：<span id="outM">-</span></div>
+      <div class="pill">年：<span id="outY">-</span></div>
+    </div>
+
+    <div class="nums">
+      <div class="pill">日柱：<span id="outKD">-</span></div>
+      <div class="pill">月柱：<span id="outKM">-</span></div>
+      <div class="pill">年柱：<span id="outKY">-</span></div>
+    </div>
+
+    <button id="btnFetch" onclick="getMeishiki()">① 取得命式</button>
+   
+    <button id="btnSave">② 保存</button>
+   
+    <hr />
+
+    <label>從保存資料中讀取</label>
+    <select id="sel"></select>
+    <button id="btnLoad">③ 讀取選擇資料</button>
+    <button id="btnDel">刪除</button>
+    <button id="btnReset">全部刪除（初始化）</button>
+
+    <p class="muted">
+      資料將保存在此裝置與此瀏覽器中。保存鍵值為 <strong>PER-people-kanshi-v4</strong>。
+    </p>
+  </div>
+
+<script>
+  const KEY = "PER-people-kanshi-v4";
+  const URLKEY = "PER-public-csv-url-v1";
+  const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxTXThLXknFimOLcnhBoQ4rfCly8-Koj_8ZvEFnFTw0DVt2xTwVZUr6QVySZjwJ-8eZ0g/exec";
+  const $ = (id) => document.getElementById(id);
+
+  function readStore() {
+    try { return JSON.parse(localStorage.getItem(KEY) || "{}"); }
+    catch { return {}; }
+  }
+
+  function writeStore(obj) {
+    localStorage.setItem(KEY, JSON.stringify(obj));
+  }
+
+  function toNum(v) {
+    const n = parseInt(v, 10);
+    return (Number.isInteger(n) && n >= 1 && n <= 60) ? n : NaN;
+  }
+
+  function showNums(D, M, Y) {
+    $("outD").textContent = Number.isFinite(D) ? D : "-";
+    $("outM").textContent = Number.isFinite(M) ? M : "-";
+    $("outY").textContent = Number.isFinite(Y) ? Y : "-";
+  }
+
+  function showKanshi(D, M, Y) {
+    $("outKD").textContent = D || "-";
+    $("outKM").textContent = M || "-";
+    $("outKY").textContent = Y || "-";
+  }
+
+  function refreshSelect() {
+    const store = readStore();
+    const sel = $("sel");
+    sel.innerHTML = "";
+
+    const keys = Object.keys(store).sort();
+    const opt0 = document.createElement("option");
+    opt0.value = "";
+    opt0.textContent = keys.length ? "請選擇" : "（尚未保存任何資料）";
+    sel.appendChild(opt0);
+
+    keys.forEach(k => {
+      const item = store[k];
+      const o = document.createElement("option");
+      o.value = k;
+      o.textContent = `${k}（${item.dob || "無日期"} / 日${item.D} 月${item.M} 年${item.Y}）`;
+      sel.appendChild(o);
+    });
+  }
+
+  function normalizeDate(v) {
+    if (!v) return "";
+    const s = String(v).trim();
+    const m = s.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})$/);
+    if (!m) return s;
+    const y = m[1];
+    const mo = String(m[2]).padStart(2, "0");
+    const d = String(m[3]).padStart(2, "0");
+    return `${y}-${mo}-${d}`;
+  }
+
+  async function fetchCurrentValues() {
+    const birth = $("dob").value;
+    if (!birth) {
+      alert("請輸入出生年月日。");
+      $("status").innerHTML = '<div class="warn">請先輸入出生年月日。</div>';
+      return;
+    }
+
+    localStorage.setItem(URLKEY, APPS_SCRIPT_URL);
+    $("status").textContent = "取得中…";
+    $("debugResult").textContent = "";
+
+    try {
+      const res = await fetch(APPS_SCRIPT_URL + "?birth=" + encodeURIComponent(birth), {
+        method: "GET",
+        cache: "no-store"
+      });
+
+      if (!res.ok) {
+        throw new Error("Apps Script 取得失敗。HTTP " + res.status);
+      }
+
+      const data = await res.json();
+      $("debugResult").textContent = JSON.stringify(data, null, 2);
+
+      if (!data.ok) {
+        throw new Error(data.error || "無法取得命式。");
+      }
+
+      const D = toNum(data.day);
+      const M = toNum(data.month);
+      const Y = toNum(data.year);
+
+      if (!Number.isFinite(D) || !Number.isFinite(M) || !Number.isFinite(Y)) {
+        throw new Error("編號取得失敗。請確認回傳資料。");
+      }
+
+      const apiDob = normalizeDate(data.birth || birth);
+      if (apiDob) $("dob").value = apiDob;
+
+      $("numD").value = D;
+      $("numM").value = M;
+      $("numY").value = Y;
+
+      showNums(D, M, Y);
+      showKanshi(data.dayKan, data.monthKan, data.yearKan);
+
+      $("status").innerHTML =
+        `<div class="ok">取得成功。出生年月日 ${data.birth || birth} / 日 ${D} / 月 ${M} / 年 ${Y}</div>`;
+    } catch (err) {
+      $("status").innerHTML = `<div class="warn">取得失敗。<br>${err.message}</div>`;
+      $("debugResult").textContent = String(err);
+      alert("取得失敗。\n" + err.message);
+    }
+  }
+
+  function getMeishiki() {
+    fetchCurrentValues();
+  }
+
+  $("btnSave").addEventListener("click", () => {
+    const name = $("name").value.trim();
+    const dob = $("dob").value.trim();
+    const D = toNum($("numD").value);
+    const M = toNum($("numM").value);
+    const Y = toNum($("numY").value);
+
+    if (!name) {
+      alert("請輸入保存名稱。");
+      return;
+    }
+    if (!dob) {
+      alert("請輸入出生年月日。");
+      return;
+    }
+    if (!Number.isFinite(D) || !Number.isFinite(M) || !Number.isFinite(Y)) {
+      alert("請先按「① 取得命式」取得編號。");
+      return;
+    }
+
+    const store = readStore();
+    store[name] = {
+      name, dob, D, M, Y,
+      kanshiD: $("outKD").textContent,
+      kanshiM: $("outKM").textContent,
+      kanshiY: $("outKY").textContent,
+      savedAt: new Date().toISOString()
+    };
+  
+writeStore(store);
+refreshSelect();
+alert("已保存。");
+
+  });
+
+  $("btnLoad").addEventListener("click", () => {
+    const key = $("sel").value;
+    if (!key) return;
+
+    const store = readStore();
+    const item = store[key];
+    if (!item) return;
+
+    $("name").value = item.name || key;
+    $("dob").value = item.dob || "";
+    $("numD").value = item.D ?? "";
+    $("numM").value = item.M ?? "";
+    $("numY").value = item.Y ?? "";
+
+    showNums(item.D, item.M, item.Y);
+    showKanshi(item.kanshiD, item.kanshiM, item.kanshiY);
+    $("status").innerHTML = '<div class="ok">已讀取保存資料。</div>';
+  });
+
+  $("btnDel").addEventListener("click", () => {
+    const key = $("sel").value;
+    if (!key) return;
+    if (!confirm(`要刪除「${key}」嗎？`)) return;
+
+    const store = readStore();
+    delete store[key];
+    writeStore(store);
+    refreshSelect();
+
+    $("name").value = "";
+    $("dob").value = "";
+    $("numD").value = "";
+    $("numM").value = "";
+    $("numY").value = "";
+
+    showNums(NaN, NaN, NaN);
+    showKanshi("", "", "");
+    $("status").textContent = "";
+    $("debugResult").textContent = "";
+    alert("已刪除。");
+  });
+
+  $("btnReset").addEventListener("click", () => {
+    if (!confirm("要刪除所有保存資料並初始化嗎？")) return;
+
+    ["PER-people-kanshi-v1", "PER-people-kanshi-v2", "PER-people-kanshi-v3", "PER-people-kanshi-v4"].forEach(k => {
+      try { localStorage.removeItem(k); } catch {}
+    });
+    $("name").value = "";
+    $("dob").value = "";
+    $("numD").value = "";
+    $("numM").value = "";
+    $("numY").value = "";
+    $("status").textContent = "";
+    $("debugResult").textContent = "";
+
+    showNums(NaN, NaN, NaN);
+    showKanshi("", "", "");
+    refreshSelect();
+    alert("已初始化。");
+  });
+
+  (function init() {
+    refreshSelect();
+  })();
+</script>
+
+</body>
+</html>
