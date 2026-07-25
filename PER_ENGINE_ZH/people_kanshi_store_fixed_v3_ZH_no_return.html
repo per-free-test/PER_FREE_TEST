@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>干支編號名冊（Apps Script 連接版）</title>
+  <title>干支編號名冊</title>
   <style>
     body{
       font-family:system-ui,-apple-system,"Segoe UI",sans-serif;
@@ -72,25 +72,49 @@
       font-size:14px;
     }
     hr{margin:18px 0; border:none; border-top:1px solid #e5e7eb;}
+    .details{
+      margin-top:14px;
+      border:1px solid #d1d5db;
+      border-radius:12px;
+      background:#f8fafc;
+      overflow:hidden;
+    }
+    .details summary{
+      cursor:pointer;
+      padding:12px 14px;
+      font-weight:700;
+      list-style:none;
+    }
+    .details summary::-webkit-details-marker{display:none}
+    .details summary::after{content:"＋";float:right}
+    .details[open] summary::after{content:"−"}
+    .details-body{padding:0 14px 14px}
+    .compact-row{
+      display:grid;
+      grid-template-columns:repeat(3,1fr);
+      gap:10px;
+      margin-top:8px;
+    }
+    .compact-item{
+      padding:10px 12px;
+      border:1px solid #d1d5db;
+      border-radius:10px;
+      background:#fff;
+      text-align:center;
+    }
+    .status-compact{margin-top:10px;font-size:14px}
     @media (max-width:700px){
       .row{grid-template-columns:1fr}
+      .compact-row{grid-template-columns:1fr}
+      body{margin:10px}
+      .box{padding:14px}
     }
   </style>
 </head>
 <body>
   <div class="box">
-    <h2>干支編號名冊（Apps Script 連接版）</h2>
-    <p class="muted">
-      透過 Apps Script 取得 <strong>出生年月日 → 日編號・月編號・年編號・日柱・月柱・年柱</strong>。<br>
-      ※ 請在此頁輸入出生年月日後，按下「① 取得命式」。
-    </p>
-
-    <div class="warn">
-      使用方式：<br>
-      ① 輸入出生年月日<br>
-      ② 按下「① 取得命式」<br>
-      ③ 當編號與干支顯示後進行保存
-    </div>
+    <h2>干支編號名冊</h2>
+    <p class="muted">輸入出生年月日後取得命式，再保存人物資料。</p>
 
     <label>保存名稱（姓名或暱稱）</label>
     <input id="name" placeholder="" />
@@ -98,45 +122,51 @@
     <label>出生年月日</label>
     <input id="dob" type="date" />
 
-    <div id="status" class="muted" style="margin-top:10px;"></div>
-    <pre id="debugResult" style="background:#fff;padding:10px;"></pre>
-  
-    <div class="row">
-      <div>
-        <label>日編號（1〜60）</label>
-        <input id="numD" type="number" min="1" max="60" placeholder="" />
-      </div>
-      <div>
-        <label>月編號（1〜60）</label>
-        <input id="numM" type="number" min="1" max="60" placeholder="" />
-      </div>
-      <div>
-        <label>年編號（1〜60）</label>
-        <input id="numY" type="number" min="1" max="60" placeholder="" />
-      </div>
-    </div>
+    <div id="status" class="status-compact muted"></div>
+    <pre id="debugResult" style="display:none;"></pre>
 
-    <div class="nums">
-      <div class="pill">日：<span id="outD">-</span></div>
-      <div class="pill">月：<span id="outM">-</span></div>
-      <div class="pill">年：<span id="outY">-</span></div>
-    </div>
 
-    <div class="nums">
-      <div class="pill">日柱：<span id="outKD">-</span></div>
-      <div class="pill">月柱：<span id="outKM">-</span></div>
-      <div class="pill">年柱：<span id="outKY">-</span></div>
-    </div>
+ <button id="btnFetch" onclick="getMeishiki()">取得命式</button>
+    <button id="btnSave">保存</button>
 
-    <button id="btnFetch" onclick="getMeishiki()">① 取得命式</button>
-   
-    <button id="btnSave">② 保存</button>
-   
+    <details class="details">
+      <summary>查看命式詳細</summary>
+      <div class="details-body">
+        <div class="row">
+          <div>
+            <label>日編號（1〜60）</label>
+            <input id="numD" type="number" min="1" max="60" />
+          </div>
+          <div>
+            <label>月編號（1〜60）</label>
+            <input id="numM" type="number" min="1" max="60" />
+          </div>
+          <div>
+            <label>年編號（1〜60）</label>
+            <input id="numY" type="number" min="1" max="60" />
+          </div>
+        </div>
+
+        <div class="compact-row">
+          <div class="compact-item">日：<span id="outD">-</span></div>
+          <div class="compact-item">月：<span id="outM">-</span></div>
+          <div class="compact-item">年：<span id="outY">-</span></div>
+        </div>
+
+        <div class="compact-row">
+          <div class="compact-item">日柱：<span id="outKD">-</span></div>
+          <div class="compact-item">月柱：<span id="outKM">-</span></div>
+          <div class="compact-item">年柱：<span id="outKY">-</span></div>
+        </div>
+      </div>
+    </details>
+
+    
     <hr />
 
     <label>從保存資料中讀取</label>
     <select id="sel"></select>
-    <button id="btnLoad">③ 讀取選擇資料</button>
+    <button id="btnLoad">讀取選擇資料</button>
     <button id="btnDel">刪除</button>
     <button id="btnReset">全部刪除（初始化）</button>
 
@@ -256,7 +286,7 @@
       showKanshi(data.dayKan, data.monthKan, data.yearKan);
 
       $("status").innerHTML =
-        `<div class="ok">取得成功。出生年月日 ${data.birth || birth} / 日 ${D} / 月 ${M} / 年 ${Y}</div>`;
+        `<div class="ok">✓ 命式取得完成</div>`;
     } catch (err) {
       $("status").innerHTML = `<div class="warn">取得失敗。<br>${err.message}</div>`;
       $("debugResult").textContent = String(err);
@@ -319,7 +349,7 @@ alert("已保存。");
 
     showNums(item.D, item.M, item.Y);
     showKanshi(item.kanshiD, item.kanshiM, item.kanshiY);
-    $("status").innerHTML = '<div class="ok">已讀取保存資料。</div>';
+    $("status").innerHTML = '<div class="ok">✓ 已讀取保存資料</div>';
   });
 
   $("btnDel").addEventListener("click", () => {

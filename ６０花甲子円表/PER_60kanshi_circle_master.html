@@ -356,6 +356,7 @@
         const ny = cy + rNum * Math.sin(rad);
         numBtn.style.left = `${nx}px`;
         numBtn.style.top  = `${ny}px`;
+        numBtn.style.transform = "translate(-50%, -50%)";
 
         const numSpan = document.createElement("span");
         numSpan.className = "num";
